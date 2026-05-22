@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <title>Clasificador de Residuos IA</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+
+    <style>
+        :root {
+            --color-primary: #FF6B6B;  /* Rojo cálido */
+            --color-secondary: #4ECDC4; /* Verde turquesa */
+            --color-accent: #FFD166;    /* Amarillo cálido */
+            --color-dark: #2A2D43;      /* Azul oscuro suave */
+            --color-light: #F7F9FC;     /* Fondo claro */
+            --color-success: #06D6A0;   /* Verde esmeralda */
+            --color-warning: #FFD166;   /* Amarillo */
+            --color-danger: #EF476F;    /* Rojo rosado */
+            --color-info: #118AB2;      /* Azul claro */
+        }
+        
+        body {
+            background-color: var(--color-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+        }
+        
+        #resultado {
+            font-weight: bold;
+            font-size: 2.5rem;
+            text-align: center;
+            color: var(--color-primary);
+            min-height: 80px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(255, 107, 107, 0.1);
+        }
+        
+        #confianza {
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        #probabilidades {
+            font-size: 1rem;
+            text-align: left;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            border: 1px solid #E0E6F8;
+            max-height: 350px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .clase-prob {
+            margin: 8px 0;
+            padding: 8px;
+            border-bottom: 1px solid #F0F4FF;
+            transition: all 0.3s ease;
+        }
+        
+        .clase-prob:hover {
+            background-color: rgba(255, 214, 102, 0.1);
+            border-radius: 8px;
+            transform: translateX(5px);
+        }
+        
+        .prob-bar {
+            height: 12px;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+            border-radius: 6px;
+            margin-top: 5px;
+            transition: width 0.5s ease;
+        }
+        
+        .canvas-container {
+            margin: 0 auto;
+            border: 3px solid #E0E6F8;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+            background-color: #000;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .canvas-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            background-color: rgba(42, 45, 67, 0.85);
+            font-size: 1.2rem;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .btn-custom {
+            margin: 5px;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s;
+            border: none;
+        }
+        
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-primary), #FF8E8E);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--color-success), #4ECDC4);
+            color: white;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, var(--color-info), #45B7D1);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--color-warning), #FFE082);
+            color: #333;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #8A8FB9, #6C7293);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--color-danger), #FF8BA0);
+            color: white;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+            overflow: hidden;
+            background: white;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-info));
+            border-bottom: none;
+            padding: 20px;
+            color: white;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-green {
+            background-color: var(--color-success);
+            box-shadow: 0 0 0 rgba(6, 214, 160, 0.4);
+            animation: pulse-green 2s infinite;
+        }
+        
+        .status-red {
+            background-color: var(--color-danger);
+        }
+        
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(6, 214, 160, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(6, 214, 160, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(6, 214, 160, 0); }
+        }
+        
+        .clase-item {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(78, 205, 196, 0.1));
+            color: var(--color-dark);
+            padding: 8px 16px;
+            margin: 6px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: 2px solid rgba(255, 214, 102, 0.3);
+            transition: all 0.3s;
+        }
+        
+        .clase-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 107, 107, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--color-primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .header-gradient {
+            background: linear-gradient(135deg, var(--color-dark), var(--color-info));
+            color: white;
+        }
+        
+        .footer-gradient {
+            background: linear-gradient(135deg, var(--color-dark), #1A1E36);
+            color: white;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+        }
+        
+        .badge {
+            border-radius: 20px;
+            padding: 8px 16px;
+        }
+        
+        .bg-success {
+            background-color: var(--color-success) !important;
+        }
+        
+        .bg-warning {
+            background-color: var(--color-warning) !important;
+            color: #333 !important;
+        }
+        
+        .bg-danger {
+            background-color: var(--color-danger) !important;
+        }
+        
+        .text-muted {
+            color: #8A8FB9 !important;
+        }
+        
+        .bg-light {
+            background-color: rgba(247, 249, 252, 0.8) !important;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <!-- Header -->
+        <div class="header-gradient py-4">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <img src="LogotipoV2-Simple.png" alt="Logo" width="70" height="70" class="rounded-circle border border-3 border-white">
+                    </div>
+                    <div class="col">
+                        <h1 class="display-5 fw-bold mb-1">Clasificador Inteligente de Residuos</h1>
+                        <p class="lead mb-0">IA de reconocimiento visual con MobileNetV2 | 8 categorías</p>
+                        <div class="mt-2">
+                            <span id="status-modelo" class="badge bg-light text-dark">
+                                <span class="status-indicator status-green"></span>
+                                Cargando modelo...
+                            </span>
+                            <span id="status-camara" class="badge bg-light text-dark ms-2">
+                                <span class="status-indicator status-red"></span>
+                                Cámara: Apagada
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenido principal -->
+        <div class="container my-5">
+            <div class="row">
+                <!-- Columna izquierda: Cámara y controles -->
+                <div class="col-lg-7 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-camera-video"></i> Vista de Cámara</h4>
+                        </div>
+                        <div class="card-body">
+                            <!-- Video y Canvas -->
+                            <div class="text-center position-relative">
+                                <video id="video" playsinline autoplay muted style="display: none;"></video>
+                                <div class="canvas-container mb-4">
+                                    <canvas id="canvas" width="480" height="480"></canvas>
+                                    <div class="canvas-placeholder" id="canvasPlaceholder">
+                                        <div>
+                                            <i class="bi bi-camera-off" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                                            <p>Cámara apagada<br><small>Activa la cámara o sube una imagen</small></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <canvas id="previewCanvas" width="224" height="224" style="display: none;"></canvas>
+                                
+                                <!-- Indicador de predicción activa -->
+                                <div class="position-absolute top-0 end-0 m-3">
+                                    <div id="prediction-indicator" class="badge bg-success" style="display: none;">
+                                        <i class="bi bi-lightning-charge"></i> Prediciendo en tiempo real
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Controles SIMPLIFICADOS -->
+                            <div class="text-center mt-4">
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-primary btn-custom" id="btnToggleCamara" onclick="toggleCamara()">
+                                        <i class="bi bi-camera-video"></i> Activar Cámara
+                                    </button>
+                                    <button class="btn btn-info btn-custom" onclick="cargarImagen()">
+                                        <i class="bi bi-upload"></i> Subir Imagen
+                                    </button>
+                                    <button class="btn btn-secondary btn-custom" onclick="limpiarTodo()">
+                                        <i class="bi bi-arrow-clockwise"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Estado actual -->
+                            <div class="mt-3 text-center">
+                                <small class="text-muted" id="estadoActual">Estado: Esperando acción...</small>
+                            </div>
+                            
+                            <!-- Estadísticas -->
+                            <div class="mt-4 p-3 bg-light rounded">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div class="h5 mb-1" id="fps-counter">0</div>
+                                        <small class="text-muted">FPS</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="h5 mb-1" id="prediction-time">0ms</div>
+                                        <small class="text-muted">Tiempo predicción</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="h5 mb-1" id="memory-usage">0 MB</div>
+                                        <small class="text-muted">Memoria TF.js</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Columna derecha: Resultados -->
+                <div class="col-lg-5 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-graph-up"></i> Resultados de Clasificación</h4>
+                        </div>
+                        <div class="card-body">
+                            <!-- Resultado principal -->
+                            <div class="text-center mb-4">
+                                <h5 class="text-muted mb-2">Categoría detectada:</h5>
+                                <div id="resultado" class="display-4 fw-bold py-3">---</div>
+                                <div id="confianza" class="h5">
+                                    <span class="badge bg-secondary">Confianza: --%</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Probabilidades -->
+                            <h5><i class="bi bi-bar-chart-line"></i> Distribución de probabilidades:</h5>
+                            <div id="probabilidades" class="mt-3">
+                                <div class="text-center py-5">
+                                    <div class="loading mx-auto"></div>
+                                    <p class="text-muted mt-3">Esperando predicción...</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Información del modelo -->
+                            <div class="mt-4 pt-3 border-top">
+                                <h6><i class="bi bi-info-circle"></i> Información del modelo:</h6>
+                                <div class="small text-muted">
+                                    <div>• MobileNetV2 + Capas personalizadas</div>
+                                    <div>• Entrada: 224×224 píxeles RGB</div>
+                                    <div>• 8 categorías de residuos</div>
+                                    <div>• Tamaño del modelo: ~9.2 MB</div>
+                                    <div>• Precisión en validación: >90%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Clases disponibles -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-tags"></i> Categorías reconocidas</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="clases-lista" class="text-center">
+                                <!-- Se llenará automáticamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer-gradient py-4 mt-5">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-8 mx-auto text-center">
+                        <h3 class="fw-bold mb-3">Sistema de Clasificación de Residuos</h3>
+                        <p class="mb-0">Desarrollado con TensorFlow.js | Modelo personalizado MobileNetV2</p>
+                        <p class="small mt-2 opacity-75">© 2024 - Proyecto IA UPAO</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Input oculto para subir imágenes -->
+    <input type="file" id="fileInput" style="display: none;" accept="image/*">
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script type="text/javascript">
+        // ============================================
+        // CONFIGURACIÓN Y VARIABLES GLOBALES
+        // ============================================
+        const config = {
+            canvasSize: 480,
+            modelInputSize: 224,
+            predictionInterval: 1000,
+            normalizeMethod: 'mobilenet'
+        };
+
+        // Elementos del DOM
+        const canvas = document.getElementById("canvas");
+        const previewCanvas = document.getElementById("previewCanvas");
+        const video = document.getElementById("video");
+        const fileInput = document.getElementById("fileInput");
+        const canvasPlaceholder = document.getElementById("canvasPlaceholder");
+        const ctx = canvas.getContext("2d");
+        
+        // Estado de la aplicación
+        let modelo = null;
+        let currentStream = null;
+        let isPredicting = false;
+        let isCameraActive = false;
+        let predictionInterval = null;
+        let lastPredictionTime = 0;
+        let frameCount = 0;
+        let lastFpsUpdate = Date.now();
+        let fps = 0;
+        
+        // TUS 8 CATEGORÍAS
+        const clases = [
+            "batería",      // Clase 0
+            "orgánico",   // Clase 1  
+            "cartón",    // Clase 2
+            "vidrio",        // Clase 3
+            "metal",        // Clase 4
+            "papel",        // Clase 5
+            "plástico",      // Clase 6
+            "basura"         // Clase 7
+        ];
+
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+        window.addEventListener('DOMContentLoaded', async () => {
+            console.log("🚀 Iniciando aplicación");
+            
+            // Configurar canvas
+            canvas.width = config.canvasSize;
+            canvas.height = config.canvasSize;
+            previewCanvas.width = config.modelInputSize;
+            previewCanvas.height = config.modelInputSize;
+            
+            // Mostrar estado inicial
+            mostrarEstadoInicial();
+            
+            // Cargar modelo
+            await cargarModelo();
+            
+            // Mostrar clases
+            mostrarClasesDisponibles();
+            
+            // Iniciar monitor
+            iniciarMonitorRendimiento();
+        });
+
+        // ============================================
+        // CARGAR MODELO
+        // ============================================
+        async function cargarModelo() {
+            const statusElement = document.getElementById("status-modelo");
+            
+            try {
+                statusElement.innerHTML = '<span class="status-indicator status-green"></span> Cargando modelo...';
+                
+                modelo = await tf.loadGraphModel('modelo/model.json');
+                
+                console.log("✅ Modelo cargado");
+                console.log("Input shape:", modelo.inputs[0].shape);
+                
+                statusElement.innerHTML = '<span class="status-indicator status-green"></span> Modelo cargado ✓';
+                statusElement.className = 'badge bg-success';
+                
+                mostrarNotificacion("Modelo de IA cargado", "success");
+                
+            } catch (error) {
+                console.error("❌ Error cargando modelo:", error);
+                statusElement.innerHTML = '<span class="status-indicator status-red"></span> Error cargando modelo';
+                statusElement.className = 'badge bg-danger';
+                mostrarNotificacion("Error cargando el modelo", "danger");
+            }
+        }
+
+        // ============================================
+        // CÁMARA - FUNCIONES SIMPLIFICADAS
+        // ============================================
+        async function toggleCamara() {
+            if (isCameraActive) {
+                await detenerCamara();
+            } else {
+                await iniciarCamara();
+            }
+        }
+
+        async function iniciarCamara() {
+            try {
+                canvasPlaceholder.style.display = 'none';
+                
+                const constraints = {
+                    video: {
+                        width: { ideal: config.canvasSize },
+                        height: { ideal: config.canvasSize },
+                        facingMode: 'environment'
+                    },
+                    audio: false
+                };
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve();
+                    };
+                });
+                
+                isCameraActive = true;
+                actualizarEstadoCamara();
+                dibujarCamara();
+                iniciarPrediccion();
+                
+                mostrarNotificacion("Cámara activada", "success");
+                
+            } catch (error) {
+                console.error("❌ Error cámara:", error);
+                mostrarNotificacion("No se pudo acceder a la cámara", "warning");
+                canvasPlaceholder.style.display = 'flex';
+            }
+        }
+
+        async function detenerCamara() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                video.srcObject = null;
+            }
+            
+            isCameraActive = false;
+            detenerPrediccion();
+            actualizarEstadoCamara();
+            
+            canvasPlaceholder.style.display = 'flex';
+            canvasPlaceholder.innerHTML = `
+                <div>
+                    <i class="bi bi-camera-off" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                    <p>Cámara apagada<br><small>Activa la cámara o sube una imagen</small></p>
+                </div>
+            `;
+            
+            ctx.fillStyle = "#2c3e50";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            mostrarNotificacion("Cámara desactivada", "info");
+        }
+
+        function dibujarCamara() {
+            if (!isCameraActive || !currentStream) return;
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                frameCount++;
+            }
+            
+            requestAnimationFrame(dibujarCamara);
+        }
+
+        function actualizarEstadoCamara() {
+            const btnCamara = document.getElementById("btnToggleCamara");
+            const statusCamara = document.getElementById("status-camara");
+            
+            if (isCameraActive) {
+                btnCamara.innerHTML = '<i class="bi bi-camera-video-off"></i> Desactivar Cámara';
+                btnCamara.className = 'btn btn-danger btn-custom';
+                statusCamara.innerHTML = '<span class="status-indicator status-green"></span> Cámara: Encendida';
+                document.getElementById("estadoActual").textContent = "Estado: Cámara activa - Prediciendo...";
+            } else {
+                btnCamara.innerHTML = '<i class="bi bi-camera-video"></i> Activar Cámara';
+                btnCamara.className = 'btn btn-primary btn-custom';
+                statusCamara.innerHTML = '<span class="status-indicator status-red"></span> Cámara: Apagada';
+                document.getElementById("estadoActual").textContent = "Estado: Esperando acción...";
+            }
+        }
+
+        function mostrarEstadoInicial() {
+            ctx.fillStyle = "#2c3e50";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = "#ecf0f1";
+            ctx.font = "24px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("Clasificador IA Residuos", canvas.width/2, canvas.height/2 - 30);
+            
+            ctx.font = "16px Arial";
+            ctx.fillText("Activa la cámara o sube una imagen", canvas.width/2, canvas.height/2 + 10);
+        }
+
+        // ============================================
+        // SUBIR IMAGEN - FUNCIÓN SIMPLIFICADA
+        // ============================================
+        function cargarImagen() {
+            fileInput.click();
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Detener cámara si está activa
+                    if (isCameraActive) {
+                        detenerCamara();
+                    }
+                    
+                    // Ocultar placeholder
+                    canvasPlaceholder.style.display = 'none';
+                    
+                    // Dibujar imagen
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Realizar predicción
+                    realizarPrediccionUnica();
+                    
+                    mostrarNotificacion("Imagen cargada ✓", "success");
+                    document.getElementById("estadoActual").textContent = "Estado: Imagen cargada - Analizando...";
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // ============================================
+        // LIMPIAR TODO - NUEVA FUNCIÓN SIMPLE
+        // ============================================
+        function limpiarTodo() {
+            // Detener cámara si está activa
+            if (isCameraActive) {
+                detenerCamara();
+            } else {
+                // Si no hay cámara, solo limpiar
+                mostrarEstadoInicial();
+                canvasPlaceholder.style.display = 'flex';
+            }
+            
+            // Limpiar resultados
+            document.getElementById("resultado").textContent = "---";
+            document.getElementById("confianza").innerHTML = '<span class="badge bg-secondary">Confianza: --%</span>';
+            document.getElementById("probabilidades").innerHTML = `
+                <div class="text-center py-5">
+                    <div class="loading mx-auto"></div>
+                    <p class="text-muted mt-3">Esperando predicción...</p>
+                </div>
+            `;
+            
+            // Actualizar estado
+            document.getElementById("estadoActual").textContent = "Estado: Todo limpiado - Listo para usar";
+            
+            mostrarNotificacion("Interfaz limpiada", "info");
+        }
+
+        // ============================================
+        // PREDICCIONES - FUNCIONES SIMPLIFICADAS
+        // ============================================
+        function iniciarPrediccion() {
+            if (isPredicting) return;
+            
+            isPredicting = true;
+            const indicator = document.getElementById("prediction-indicator");
+            indicator.style.display = 'block';
+            
+            async function predictionLoop() {
+                if (!isPredicting || !modelo || !isCameraActive) {
+                    return;
+                }
+                
+                await realizarPrediccion();
+                predictionInterval = setTimeout(predictionLoop, config.predictionInterval);
+            }
+            
+            predictionLoop();
+        }
+
+        function detenerPrediccion() {
+            isPredicting = false;
+            if (predictionInterval) {
+                clearTimeout(predictionInterval);
+                predictionInterval = null;
+            }
+            const indicator = document.getElementById("prediction-indicator");
+            indicator.style.display = 'none';
+        }
+
+        async function realizarPrediccionUnica() {
+            if (!modelo) {
+                mostrarNotificacion("El modelo no está cargado", "warning");
+                return;
+            }
+            
+            const startTime = performance.now();
+            
+            try {
+                // Redimensionar imagen
+                const ctxPreview = previewCanvas.getContext("2d");
+                ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                ctxPreview.drawImage(canvas, 0, 0, config.modelInputSize, config.modelInputSize);
+                
+                // Convertir a tensor
+                let imageTensor = tf.browser.fromPixels(previewCanvas);
+                
+                // Normalización
+                imageTensor = imageTensor.toFloat()
+                    .div(127.5)
+                    .sub(1);
+                
+                // Agregar batch
+                imageTensor = imageTensor.expandDims(0);
+                
+                // Realizar predicción
+                const prediccion = modelo.predict(imageTensor);
+                const probabilidades = await prediccion.data();
+                
+                // Calcular tiempo
+                const endTime = performance.now();
+                lastPredictionTime = endTime - startTime;
+                
+                // Procesar resultados
+                procesarResultados(probabilidades);
+                
+                // Liberar memoria
+                tf.dispose([imageTensor, prediccion]);
+                
+                document.getElementById("estadoActual").textContent = "Estado: Análisis completado ✓";
+                
+            } catch (error) {
+                console.error("❌ Error en predicción:", error);
+                mostrarNotificacion("Error en la predicción", "danger");
+            }
+        }
+
+        async function realizarPrediccion() {
+            if (!modelo || !isCameraActive) return;
+            
+            const startTime = performance.now();
+            
+            try {
+                const ctxPreview = previewCanvas.getContext("2d");
+                ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                ctxPreview.drawImage(canvas, 0, 0, config.modelInputSize, config.modelInputSize);
+                
+                let imageTensor = tf.browser.fromPixels(previewCanvas);
+                imageTensor = imageTensor.toFloat()
+                    .div(127.5)
+                    .sub(1)
+                    .expandDims(0);
+                
+                const prediccion = modelo.predict(imageTensor);
+                const probabilidades = await prediccion.data();
+                
+                const endTime = performance.now();
+                lastPredictionTime = endTime - startTime;
+                
+                procesarResultados(probabilidades);
+                
+                tf.dispose([imageTensor, prediccion]);
+                
+            } catch (error) {
+                console.error("❌ Error en predicción:", error);
+            }
+        }
+
+        // ============================================
+        // PROCESAR RESULTADOS
+        // ============================================
+        function procesarResultados(probabilidades) {
+            console.log("📊 Probabilidades:", probabilidades);
+            
+            // Encontrar la clase con mayor probabilidad
+            let mayorProb = -1;
+            let mayorIndice = -1;
+            
+            for (let i = 0; i < probabilidades.length; i++) {
+                if (probabilidades[i] > mayorProb) {
+                    mayorProb = probabilidades[i];
+                    mayorIndice = i;
+                }
+            }
+            
+            // Calcular confianza
+            const confianza = (mayorProb * 100).toFixed(1);
+            
+            // Mostrar resultado
+            const resultadoElement = document.getElementById("resultado");
+            const confianzaElement = document.getElementById("confianza");
+            
+            resultadoElement.textContent = clases[mayorIndice];
+            confianzaElement.innerHTML = `<span class="badge ${getConfianzaColor(confianza)}">Confianza: ${confianza}%</span>`;
+            
+            // Color según confianza
+            if (confianza > 80) {
+                resultadoElement.style.color = "var(--color-success)";
+            } else if (confianza > 60) {
+                resultadoElement.style.color = "var(--color-warning)";
+            } else if (confianza > 40) {
+                resultadoElement.style.color = "#FF8E53";
+            } else {
+                resultadoElement.style.color = "var(--color-danger)";
+            }
+            
+            // Mostrar probabilidades
+            mostrarProbabilidades(probabilidades);
+        }
+
+        function getConfianzaColor(confianza) {
+            confianza = parseFloat(confianza);
+            if (confianza > 80) return 'bg-success';
+            if (confianza > 60) return 'bg-warning';
+            if (confianza > 40) return 'bg-warning';
+            return 'bg-danger';
+        }
+
+        function mostrarProbabilidades(probabilidades) {
+            const container = document.getElementById("probabilidades");
+            
+            const resultados = [];
+            for (let i = 0; i < probabilidades.length; i++) {
+                resultados.push({
+                    clase: clases[i],
+                    prob: probabilidades[i],
+                    index: i
+                });
+            }
+            
+            resultados.sort((a, b) => b.prob - a.prob);
+            
+            let html = '';
+            resultados.forEach(item => {
+                const porcentaje = (item.prob * 100).toFixed(1);
+                const barWidth = Math.min(100, porcentaje * 1.2);
+                
+                html += `
+                <div class="clase-prob">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-primary me-2">${item.index + 1}</span>
+                            <strong>${item.clase}</strong>
+                        </div>
+                        <span class="fw-bold">${porcentaje}%</span>
+                    </div>
+                    <div class="progress mt-2" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: ${barWidth}%;" 
+                             aria-valuenow="${porcentaje}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // ============================================
+        // FUNCIONES AUXILIARES
+        // ============================================
+        function mostrarClasesDisponibles() {
+            const container = document.getElementById("clases-lista");
+            let html = '';
+            
+            clases.forEach((clase, index) => {
+                html += `<span class="clase-item">${index + 1}. ${clase}</span> `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function mostrarNotificacion(mensaje, tipo = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `position-fixed bottom-0 end-0 p-3`;
+            toast.style.zIndex = '1050';
+            
+            const icon = tipo === 'success' ? 'bi-check-circle' :
+                        tipo === 'warning' ? 'bi-exclamation-triangle' :
+                        tipo === 'danger' ? 'bi-x-circle' : 'bi-info-circle';
+            
+            const toastInner = `
+            <div class="toast show" role="alert">
+                <div class="toast-header bg-${tipo} text-white">
+                    <i class="bi ${icon} me-2"></i>
+                    <strong class="me-auto">Notificación</strong>
+                    <button type="button" class="btn-close btn-close-white" onclick="this.parentElement.parentElement.remove()"></button>
+                </div>
+                <div class="toast-body">
+                    ${mensaje}
+                </div>
+            </div>
+            `;
+            
+            toast.innerHTML = toastInner;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) toast.remove();
+            }, 3000);
+        }
+
+        function iniciarMonitorRendimiento() {
+            setInterval(() => {
+                const now = Date.now();
+                const delta = now - lastFpsUpdate;
+                
+                if (delta >= 1000) {
+                    fps = Math.round((frameCount * 1000) / delta);
+                    document.getElementById('fps-counter').textContent = fps;
+                    frameCount = 0;
+                    lastFpsUpdate = now;
+                }
+                
+                document.getElementById('prediction-time').textContent = `${Math.round(lastPredictionTime)}ms`;
+                
+                const memoryInfo = tf.memory();
+                const memoryMB = (memoryInfo.numBytes / (1024 * 1024)).toFixed(1);
+                document.getElementById('memory-usage').textContent = `${memoryMB} MB`;
+                
+            }, 1000);
+        }
+
+        // Funciones globales
+        window.toggleCamara = toggleCamara;
+        window.cargarImagen = cargarImagen;
+        window.limpiarTodo = limpiarTodo;
+
+        console.log("✨ Aplicación lista");
+    </script>
+</body>
+</html>
