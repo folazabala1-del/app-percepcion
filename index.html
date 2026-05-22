@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <title>Clasificador de Residuos IA</title>
-
+ 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
     
@@ -15,18 +15,21 @@
     
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-
+ 
+    <!-- COCO-SSD -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+ 
     <style>
         :root {
-            --color-primary: #FF6B6B;  /* Rojo cálido */
-            --color-secondary: #4ECDC4; /* Verde turquesa */
-            --color-accent: #FFD166;    /* Amarillo cálido */
-            --color-dark: #2A2D43;      /* Azul oscuro suave */
-            --color-light: #F7F9FC;     /* Fondo claro */
-            --color-success: #06D6A0;   /* Verde esmeralda */
-            --color-warning: #FFD166;   /* Amarillo */
-            --color-danger: #EF476F;    /* Rojo rosado */
-            --color-info: #118AB2;      /* Azul claro */
+            --color-primary: #FF6B6B;
+            --color-secondary: #4ECDC4;
+            --color-accent: #FFD166;
+            --color-dark: #2A2D43;
+            --color-light: #F7F9FC;
+            --color-success: #06D6A0;
+            --color-warning: #FFD166;
+            --color-danger: #EF476F;
+            --color-info: #118AB2;
         }
         
         body {
@@ -249,25 +252,43 @@
             padding: 8px 16px;
         }
         
-        .bg-success {
-            background-color: var(--color-success) !important;
+        .bg-success { background-color: var(--color-success) !important; }
+        .bg-warning { background-color: var(--color-warning) !important; color: #333 !important; }
+        .bg-danger { background-color: var(--color-danger) !important; }
+        .text-muted { color: #8A8FB9 !important; }
+        .bg-light { background-color: rgba(247, 249, 252, 0.8) !important; }
+ 
+        /* ── COCO-SSD: lista de detecciones ── */
+        #detecciones-lista {
+            font-size: 0.9rem;
+            max-height: 200px;
+            overflow-y: auto;
         }
-        
-        .bg-warning {
-            background-color: var(--color-warning) !important;
-            color: #333 !important;
+ 
+        .deteccion-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            background: rgba(17, 138, 178, 0.08);
+            border-left: 3px solid var(--color-info);
         }
-        
-        .bg-danger {
-            background-color: var(--color-danger) !important;
+ 
+        .deteccion-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
-        
-        .text-muted {
-            color: #8A8FB9 !important;
+ 
+        #toggle-coco {
+            background: linear-gradient(135deg, #7B2FBE, #9D4EDD);
+            color: white;
         }
-        
-        .bg-light {
-            background-color: rgba(247, 249, 252, 0.8) !important;
+        #toggle-coco.active {
+            background: linear-gradient(135deg, #9D4EDD, #C77DFF);
         }
     </style>
 </head>
@@ -282,7 +303,7 @@
                     </div>
                     <div class="col">
                         <h1 class="display-5 fw-bold mb-1">Clasificador Inteligente de Residuos</h1>
-                        <p class="lead mb-0">IA de reconocimiento visual con MobileNetV2 | 8 categorías</p>
+                        <p class="lead mb-0">IA de reconocimiento visual con MobileNetV2 + COCO-SSD | 8 categorías</p>
                         <div class="mt-2">
                             <span id="status-modelo" class="badge bg-light text-dark">
                                 <span class="status-indicator status-green"></span>
@@ -292,12 +313,16 @@
                                 <span class="status-indicator status-red"></span>
                                 Cámara: Apagada
                             </span>
+                            <span id="status-coco" class="badge bg-light text-dark ms-2">
+                                <span class="status-indicator status-red"></span>
+                                COCO-SSD: Cargando...
+                            </span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
+ 
         <!-- Contenido principal -->
         <div class="container my-5">
             <div class="row">
@@ -308,7 +333,6 @@
                             <h4 class="mb-0"><i class="bi bi-camera-video"></i> Vista de Cámara</h4>
                         </div>
                         <div class="card-body">
-                            <!-- Video y Canvas -->
                             <div class="text-center position-relative">
                                 <video id="video" playsinline autoplay muted style="display: none;"></video>
                                 <div class="canvas-container mb-4">
@@ -322,7 +346,6 @@
                                 </div>
                                 <canvas id="previewCanvas" width="224" height="224" style="display: none;"></canvas>
                                 
-                                <!-- Indicador de predicción activa -->
                                 <div class="position-absolute top-0 end-0 m-3">
                                     <div id="prediction-indicator" class="badge bg-success" style="display: none;">
                                         <i class="bi bi-lightning-charge"></i> Prediciendo en tiempo real
@@ -330,14 +353,18 @@
                                 </div>
                             </div>
                             
-                            <!-- Controles SIMPLIFICADOS -->
+                            <!-- Controles -->
                             <div class="text-center mt-4">
-                                <div class="btn-group" role="group">
+                                <div class="btn-group flex-wrap" role="group">
                                     <button class="btn btn-primary btn-custom" id="btnToggleCamara" onclick="toggleCamara()">
                                         <i class="bi bi-camera-video"></i> Activar Cámara
                                     </button>
                                     <button class="btn btn-info btn-custom" onclick="cargarImagen()">
                                         <i class="bi bi-upload"></i> Subir Imagen
+                                    </button>
+                                    <!-- NUEVO: botón COCO-SSD -->
+                                    <button class="btn btn-custom" id="toggle-coco" onclick="toggleCoco()">
+                                        <i class="bi bi-bounding-box"></i> Detectar Objetos
                                     </button>
                                     <button class="btn btn-secondary btn-custom" onclick="limpiarTodo()">
                                         <i class="bi bi-arrow-clockwise"></i> Limpiar
@@ -345,7 +372,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Estado actual -->
                             <div class="mt-3 text-center">
                                 <small class="text-muted" id="estadoActual">Estado: Esperando acción...</small>
                             </div>
@@ -353,18 +379,30 @@
                             <!-- Estadísticas -->
                             <div class="mt-4 p-3 bg-light rounded">
                                 <div class="row text-center">
-                                    <div class="col-4">
+                                    <div class="col-3">
                                         <div class="h5 mb-1" id="fps-counter">0</div>
                                         <small class="text-muted">FPS</small>
                                     </div>
-                                    <div class="col-4">
+                                    <div class="col-3">
                                         <div class="h5 mb-1" id="prediction-time">0ms</div>
-                                        <small class="text-muted">Tiempo predicción</small>
+                                        <small class="text-muted">Predicción</small>
                                     </div>
-                                    <div class="col-4">
+                                    <div class="col-3">
                                         <div class="h5 mb-1" id="memory-usage">0 MB</div>
-                                        <small class="text-muted">Memoria TF.js</small>
+                                        <small class="text-muted">Memoria</small>
                                     </div>
+                                    <div class="col-3">
+                                        <div class="h5 mb-1" id="obj-counter">0</div>
+                                        <small class="text-muted">Objetos</small>
+                                    </div>
+                                </div>
+                            </div>
+ 
+                            <!-- NUEVO: Panel de detecciones COCO-SSD -->
+                            <div class="mt-3 p-3 rounded" id="panel-coco" style="background: rgba(17,138,178,0.07); border: 1px solid rgba(17,138,178,0.2); display:none;">
+                                <h6 class="mb-2"><i class="bi bi-bounding-box-circles"></i> Objetos detectados por COCO-SSD:</h6>
+                                <div id="detecciones-lista">
+                                    <p class="text-muted small mb-0">Sube una imagen o activa la cámara...</p>
                                 </div>
                             </div>
                         </div>
@@ -378,7 +416,6 @@
                             <h4 class="mb-0"><i class="bi bi-graph-up"></i> Resultados de Clasificación</h4>
                         </div>
                         <div class="card-body">
-                            <!-- Resultado principal -->
                             <div class="text-center mb-4">
                                 <h5 class="text-muted mb-2">Categoría detectada:</h5>
                                 <div id="resultado" class="display-4 fw-bold py-3">---</div>
@@ -387,7 +424,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Probabilidades -->
                             <h5><i class="bi bi-bar-chart-line"></i> Distribución de probabilidades:</h5>
                             <div id="probabilidades" class="mt-3">
                                 <div class="text-center py-5">
@@ -396,7 +432,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Información del modelo -->
                             <div class="mt-4 pt-3 border-top">
                                 <h6><i class="bi bi-info-circle"></i> Información del modelo:</h6>
                                 <div class="small text-muted">
@@ -405,6 +440,7 @@
                                     <div>• 8 categorías de residuos</div>
                                     <div>• Tamaño del modelo: ~9.2 MB</div>
                                     <div>• Precisión en validación: >90%</div>
+                                    <div>• COCO-SSD: detección multi-objeto</div>
                                 </div>
                             </div>
                         </div>
@@ -420,35 +456,31 @@
                             <h5 class="mb-0"><i class="bi bi-tags"></i> Categorías reconocidas</h5>
                         </div>
                         <div class="card-body">
-                            <div id="clases-lista" class="text-center">
-                                <!-- Se llenará automáticamente -->
-                            </div>
+                            <div id="clases-lista" class="text-center"></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
+ 
         <!-- Footer -->
         <div class="footer-gradient py-4 mt-5">
             <div class="container">
                 <div class="row">
                     <div class="col-lg-8 mx-auto text-center">
                         <h3 class="fw-bold mb-3">Sistema de Clasificación de Residuos</h3>
-                        <p class="mb-0">Desarrollado con TensorFlow.js | Modelo personalizado MobileNetV2</p>
+                        <p class="mb-0">Desarrollado con TensorFlow.js | MobileNetV2 + COCO-SSD</p>
                         <p class="small mt-2 opacity-75">© 2024 - Proyecto IA UPAO</p>
                     </div>
                 </div>
             </div>
         </div>
     </main>
-
-    <!-- Input oculto para subir imágenes -->
+ 
     <input type="file" id="fileInput" style="display: none;" accept="image/*">
-
-    <!-- Bootstrap JS Bundle -->
+ 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
-
+ 
     <script type="text/javascript">
         // ============================================
         // CONFIGURACIÓN Y VARIABLES GLOBALES
@@ -459,17 +491,17 @@
             predictionInterval: 1000,
             normalizeMethod: 'mobilenet'
         };
-
-        // Elementos del DOM
+ 
         const canvas = document.getElementById("canvas");
         const previewCanvas = document.getElementById("previewCanvas");
         const video = document.getElementById("video");
         const fileInput = document.getElementById("fileInput");
         const canvasPlaceholder = document.getElementById("canvasPlaceholder");
         const ctx = canvas.getContext("2d");
-        
-        // Estado de la aplicación
+ 
         let modelo = null;
+        let cocoModel = null;          // ← NUEVO
+        let cocoActivo = false;        // ← NUEVO
         let currentStream = null;
         let isPredicting = false;
         let isCameraActive = false;
@@ -478,63 +510,47 @@
         let frameCount = 0;
         let lastFpsUpdate = Date.now();
         let fps = 0;
-        
-        // TUS 8 CATEGORÍAS
-        const clases = [
-            "batería",      // Clase 0
-            "orgánico",   // Clase 1  
-            "cartón",    // Clase 2
-            "vidrio",        // Clase 3
-            "metal",        // Clase 4
-            "papel",        // Clase 5
-            "plástico",      // Clase 6
-            "basura"         // Clase 7
+ 
+        // Paleta de colores para los bounding boxes
+        const COCO_COLORS = [
+            '#FF6B6B','#4ECDC4','#FFD166','#06D6A0',
+            '#118AB2','#FF9F1C','#9B5DE5','#F15BB5'
         ];
-
+ 
+        const clases = [
+            "batería", "orgánico", "cartón", "vidrio",
+            "metal", "papel", "plástico", "basura"
+        ];
+ 
         // ============================================
         // INICIALIZACIÓN
         // ============================================
         window.addEventListener('DOMContentLoaded', async () => {
             console.log("🚀 Iniciando aplicación");
-            
-            // Configurar canvas
             canvas.width = config.canvasSize;
             canvas.height = config.canvasSize;
             previewCanvas.width = config.modelInputSize;
             previewCanvas.height = config.modelInputSize;
-            
-            // Mostrar estado inicial
+ 
             mostrarEstadoInicial();
-            
-            // Cargar modelo
             await cargarModelo();
-            
-            // Mostrar clases
+            await cargarCoco();          // ← NUEVO
             mostrarClasesDisponibles();
-            
-            // Iniciar monitor
             iniciarMonitorRendimiento();
         });
-
+ 
         // ============================================
-        // CARGAR MODELO
+        // CARGAR MODELO MOBILENET
         // ============================================
         async function cargarModelo() {
             const statusElement = document.getElementById("status-modelo");
-            
             try {
                 statusElement.innerHTML = '<span class="status-indicator status-green"></span> Cargando modelo...';
-                
                 modelo = await tf.loadGraphModel('modelo/model.json');
-                
                 console.log("✅ Modelo cargado");
-                console.log("Input shape:", modelo.inputs[0].shape);
-                
                 statusElement.innerHTML = '<span class="status-indicator status-green"></span> Modelo cargado ✓';
                 statusElement.className = 'badge bg-success';
-                
                 mostrarNotificacion("Modelo de IA cargado", "success");
-                
             } catch (error) {
                 console.error("❌ Error cargando modelo:", error);
                 statusElement.innerHTML = '<span class="status-indicator status-red"></span> Error cargando modelo';
@@ -542,9 +558,144 @@
                 mostrarNotificacion("Error cargando el modelo", "danger");
             }
         }
-
+ 
         // ============================================
-        // CÁMARA - FUNCIONES SIMPLIFICADAS
+        // NUEVO: CARGAR COCO-SSD
+        // ============================================
+        async function cargarCoco() {
+            const statusCoco = document.getElementById("status-coco");
+            try {
+                statusCoco.innerHTML = '<span class="status-indicator status-green"></span> COCO-SSD: Cargando...';
+                cocoModel = await cocoSsd.load();
+                console.log("✅ COCO-SSD cargado");
+                statusCoco.innerHTML = '<span class="status-indicator status-green"></span> COCO-SSD listo ✓';
+                statusCoco.className = 'badge bg-success';
+                mostrarNotificacion("COCO-SSD listo", "success");
+            } catch (error) {
+                console.error("❌ Error cargando COCO-SSD:", error);
+                statusCoco.innerHTML = '<span class="status-indicator status-red"></span> COCO-SSD: Error';
+                statusCoco.className = 'badge bg-danger';
+            }
+        }
+ 
+        // ============================================
+        // NUEVO: TOGGLE COCO-SSD
+        // ============================================
+        function toggleCoco() {
+            if (!cocoModel) {
+                mostrarNotificacion("COCO-SSD aún está cargando...", "warning");
+                return;
+            }
+            cocoActivo = !cocoActivo;
+            const btn = document.getElementById("toggle-coco");
+            const panel = document.getElementById("panel-coco");
+ 
+            if (cocoActivo) {
+                btn.classList.add("active");
+                btn.innerHTML = '<i class="bi bi-bounding-box"></i> Detección: ON';
+                panel.style.display = 'block';
+                mostrarNotificacion("Detección de objetos activada", "success");
+ 
+                // Si hay imagen en el canvas, detectar de inmediato
+                if (!isCameraActive) {
+                    ejecutarCoco();
+                }
+            } else {
+                btn.classList.remove("active");
+                btn.innerHTML = '<i class="bi bi-bounding-box"></i> Detectar Objetos';
+                panel.style.display = 'none';
+                mostrarNotificacion("Detección de objetos desactivada", "info");
+                // Redibujar canvas sin boxes si hay imagen cargada
+                redibujarSinBoxes();
+            }
+        }
+ 
+        // ============================================
+        // NUEVO: EJECUTAR COCO-SSD SOBRE EL CANVAS
+        // ============================================
+        async function ejecutarCoco() {
+            if (!cocoModel || !cocoActivo) return;
+ 
+            try {
+                const detecciones = await cocoModel.detect(canvas);
+                console.log("🔍 COCO detecciones:", detecciones);
+ 
+                // Actualizar contador
+                document.getElementById("obj-counter").textContent = detecciones.length;
+ 
+                // Dibujar bounding boxes
+                dibujarBoundingBoxes(detecciones);
+ 
+                // Mostrar lista
+                mostrarListaDetecciones(detecciones);
+ 
+            } catch (error) {
+                console.error("❌ Error en COCO-SSD:", error);
+            }
+        }
+ 
+        function dibujarBoundingBoxes(detecciones) {
+            detecciones.forEach((det, i) => {
+                const [x, y, w, h] = det.bbox;
+                const color = COCO_COLORS[i % COCO_COLORS.length];
+                const score = (det.score * 100).toFixed(0);
+ 
+                // Caja
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, w, h);
+ 
+                // Fondo de etiqueta
+                const label = `${det.class} ${score}%`;
+                ctx.font = 'bold 14px Segoe UI';
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y - 24, textWidth + 10, 24);
+ 
+                // Texto
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(label, x + 5, y - 6);
+            });
+        }
+ 
+        function mostrarListaDetecciones(detecciones) {
+            const container = document.getElementById("detecciones-lista");
+ 
+            if (detecciones.length === 0) {
+                container.innerHTML = '<p class="text-muted small mb-0">No se detectaron objetos.</p>';
+                return;
+            }
+ 
+            let html = '';
+            detecciones.forEach((det, i) => {
+                const color = COCO_COLORS[i % COCO_COLORS.length];
+                const score = (det.score * 100).toFixed(1);
+                html += `
+                    <div class="deteccion-item">
+                        <div class="deteccion-dot" style="background:${color}"></div>
+                        <strong>${det.class}</strong>
+                        <span class="ms-auto badge" style="background:${color}; color:#fff; border-radius:12px; padding:3px 10px;">${score}%</span>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+ 
+        // Guarda referencia a la imagen original para poder redibujar sin boxes
+        let imagenActual = null;
+ 
+        function redibujarSinBoxes() {
+            if (imagenActual) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(imagenActual, 0, 0, canvas.width, canvas.height);
+            }
+            document.getElementById("obj-counter").textContent = '0';
+            document.getElementById("detecciones-lista").innerHTML =
+                '<p class="text-muted small mb-0">Detección desactivada.</p>';
+        }
+ 
+        // ============================================
+        // CÁMARA
         // ============================================
         async function toggleCamara() {
             if (isCameraActive) {
@@ -553,11 +704,10 @@
                 await iniciarCamara();
             }
         }
-
+ 
         async function iniciarCamara() {
             try {
                 canvasPlaceholder.style.display = 'none';
-                
                 const constraints = {
                     video: {
                         width: { ideal: config.canvasSize },
@@ -566,42 +716,32 @@
                     },
                     audio: false
                 };
-                
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = currentStream;
-                
                 await new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        resolve();
-                    };
+                    video.onloadedmetadata = () => { video.play(); resolve(); };
                 });
-                
                 isCameraActive = true;
                 actualizarEstadoCamara();
                 dibujarCamara();
                 iniciarPrediccion();
-                
                 mostrarNotificacion("Cámara activada", "success");
-                
             } catch (error) {
                 console.error("❌ Error cámara:", error);
                 mostrarNotificacion("No se pudo acceder a la cámara", "warning");
                 canvasPlaceholder.style.display = 'flex';
             }
         }
-
+ 
         async function detenerCamara() {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
                 video.srcObject = null;
             }
-            
             isCameraActive = false;
             detenerPrediccion();
             actualizarEstadoCamara();
-            
             canvasPlaceholder.style.display = 'flex';
             canvasPlaceholder.innerHTML = `
                 <div>
@@ -609,28 +749,23 @@
                     <p>Cámara apagada<br><small>Activa la cámara o sube una imagen</small></p>
                 </div>
             `;
-            
             ctx.fillStyle = "#2c3e50";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
             mostrarNotificacion("Cámara desactivada", "info");
         }
-
+ 
         function dibujarCamara() {
             if (!isCameraActive || !currentStream) return;
-            
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 frameCount++;
             }
-            
             requestAnimationFrame(dibujarCamara);
         }
-
+ 
         function actualizarEstadoCamara() {
             const btnCamara = document.getElementById("btnToggleCamara");
             const statusCamara = document.getElementById("status-camara");
-            
             if (isCameraActive) {
                 btnCamara.innerHTML = '<i class="bi bi-camera-video-off"></i> Desactivar Cámara';
                 btnCamara.className = 'btn btn-danger btn-custom';
@@ -643,72 +778,68 @@
                 document.getElementById("estadoActual").textContent = "Estado: Esperando acción...";
             }
         }
-
+ 
         function mostrarEstadoInicial() {
             ctx.fillStyle = "#2c3e50";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
             ctx.fillStyle = "#ecf0f1";
             ctx.font = "24px Arial";
             ctx.textAlign = "center";
             ctx.fillText("Clasificador IA Residuos", canvas.width/2, canvas.height/2 - 30);
-            
             ctx.font = "16px Arial";
             ctx.fillText("Activa la cámara o sube una imagen", canvas.width/2, canvas.height/2 + 10);
         }
-
+ 
         // ============================================
-        // SUBIR IMAGEN - FUNCIÓN SIMPLIFICADA
+        // SUBIR IMAGEN
         // ============================================
         function cargarImagen() {
             fileInput.click();
         }
-
+ 
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(event) {
                 const img = new Image();
                 img.onload = function() {
-                    // Detener cámara si está activa
-                    if (isCameraActive) {
-                        detenerCamara();
-                    }
-                    
-                    // Ocultar placeholder
+                    if (isCameraActive) detenerCamara();
                     canvasPlaceholder.style.display = 'none';
-                    
-                    // Dibujar imagen
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    // Realizar predicción
+ 
+                    // Guardar referencia para redibujar
+                    imagenActual = img;
+ 
                     realizarPrediccionUnica();
-                    
+ 
+                    // Si COCO está activo, detectar también
+                    if (cocoActivo) {
+                        ejecutarCoco();
+                    }
+ 
                     mostrarNotificacion("Imagen cargada ✓", "success");
                     document.getElementById("estadoActual").textContent = "Estado: Imagen cargada - Analizando...";
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(file);
+            // Reset para poder subir el mismo archivo de nuevo
+            this.value = '';
         });
-
+ 
         // ============================================
-        // LIMPIAR TODO - NUEVA FUNCIÓN SIMPLE
+        // LIMPIAR TODO
         // ============================================
         function limpiarTodo() {
-            // Detener cámara si está activa
             if (isCameraActive) {
                 detenerCamara();
             } else {
-                // Si no hay cámara, solo limpiar
                 mostrarEstadoInicial();
                 canvasPlaceholder.style.display = 'flex';
             }
-            
-            // Limpiar resultados
+            imagenActual = null;
             document.getElementById("resultado").textContent = "---";
             document.getElementById("confianza").innerHTML = '<span class="badge bg-secondary">Confianza: --%</span>';
             document.getElementById("probabilidades").innerHTML = `
@@ -717,165 +848,97 @@
                     <p class="text-muted mt-3">Esperando predicción...</p>
                 </div>
             `;
-            
-            // Actualizar estado
+            document.getElementById("obj-counter").textContent = '0';
+            document.getElementById("detecciones-lista").innerHTML =
+                '<p class="text-muted small mb-0">Sube una imagen o activa la cámara...</p>';
             document.getElementById("estadoActual").textContent = "Estado: Todo limpiado - Listo para usar";
-            
             mostrarNotificacion("Interfaz limpiada", "info");
         }
-
+ 
         // ============================================
-        // PREDICCIONES - FUNCIONES SIMPLIFICADAS
+        // PREDICCIONES MOBILENET
         // ============================================
         function iniciarPrediccion() {
             if (isPredicting) return;
-            
             isPredicting = true;
-            const indicator = document.getElementById("prediction-indicator");
-            indicator.style.display = 'block';
-            
+            document.getElementById("prediction-indicator").style.display = 'block';
+ 
             async function predictionLoop() {
-                if (!isPredicting || !modelo || !isCameraActive) {
-                    return;
-                }
-                
+                if (!isPredicting || !modelo || !isCameraActive) return;
                 await realizarPrediccion();
+                // Si COCO activo en cámara, detectar también
+                if (cocoActivo) await ejecutarCoco();
                 predictionInterval = setTimeout(predictionLoop, config.predictionInterval);
             }
-            
             predictionLoop();
         }
-
+ 
         function detenerPrediccion() {
             isPredicting = false;
-            if (predictionInterval) {
-                clearTimeout(predictionInterval);
-                predictionInterval = null;
-            }
-            const indicator = document.getElementById("prediction-indicator");
-            indicator.style.display = 'none';
+            if (predictionInterval) { clearTimeout(predictionInterval); predictionInterval = null; }
+            document.getElementById("prediction-indicator").style.display = 'none';
         }
-
+ 
         async function realizarPrediccionUnica() {
-            if (!modelo) {
-                mostrarNotificacion("El modelo no está cargado", "warning");
-                return;
-            }
-            
+            if (!modelo) { mostrarNotificacion("El modelo no está cargado", "warning"); return; }
             const startTime = performance.now();
-            
             try {
-                // Redimensionar imagen
                 const ctxPreview = previewCanvas.getContext("2d");
                 ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
                 ctxPreview.drawImage(canvas, 0, 0, config.modelInputSize, config.modelInputSize);
-                
-                // Convertir a tensor
-                let imageTensor = tf.browser.fromPixels(previewCanvas);
-                
-                // Normalización
-                imageTensor = imageTensor.toFloat()
-                    .div(127.5)
-                    .sub(1);
-                
-                // Agregar batch
-                imageTensor = imageTensor.expandDims(0);
-                
-                // Realizar predicción
+                let imageTensor = tf.browser.fromPixels(previewCanvas)
+                    .toFloat().div(127.5).sub(1).expandDims(0);
                 const prediccion = modelo.predict(imageTensor);
                 const probabilidades = await prediccion.data();
-                
-                // Calcular tiempo
-                const endTime = performance.now();
-                lastPredictionTime = endTime - startTime;
-                
-                // Procesar resultados
+                lastPredictionTime = performance.now() - startTime;
                 procesarResultados(probabilidades);
-                
-                // Liberar memoria
                 tf.dispose([imageTensor, prediccion]);
-                
                 document.getElementById("estadoActual").textContent = "Estado: Análisis completado ✓";
-                
             } catch (error) {
                 console.error("❌ Error en predicción:", error);
                 mostrarNotificacion("Error en la predicción", "danger");
             }
         }
-
+ 
         async function realizarPrediccion() {
             if (!modelo || !isCameraActive) return;
-            
             const startTime = performance.now();
-            
             try {
                 const ctxPreview = previewCanvas.getContext("2d");
                 ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
                 ctxPreview.drawImage(canvas, 0, 0, config.modelInputSize, config.modelInputSize);
-                
-                let imageTensor = tf.browser.fromPixels(previewCanvas);
-                imageTensor = imageTensor.toFloat()
-                    .div(127.5)
-                    .sub(1)
-                    .expandDims(0);
-                
+                let imageTensor = tf.browser.fromPixels(previewCanvas)
+                    .toFloat().div(127.5).sub(1).expandDims(0);
                 const prediccion = modelo.predict(imageTensor);
                 const probabilidades = await prediccion.data();
-                
-                const endTime = performance.now();
-                lastPredictionTime = endTime - startTime;
-                
+                lastPredictionTime = performance.now() - startTime;
                 procesarResultados(probabilidades);
-                
                 tf.dispose([imageTensor, prediccion]);
-                
             } catch (error) {
                 console.error("❌ Error en predicción:", error);
             }
         }
-
+ 
         // ============================================
         // PROCESAR RESULTADOS
         // ============================================
         function procesarResultados(probabilidades) {
-            console.log("📊 Probabilidades:", probabilidades);
-            
-            // Encontrar la clase con mayor probabilidad
-            let mayorProb = -1;
-            let mayorIndice = -1;
-            
+            let mayorProb = -1, mayorIndice = -1;
             for (let i = 0; i < probabilidades.length; i++) {
-                if (probabilidades[i] > mayorProb) {
-                    mayorProb = probabilidades[i];
-                    mayorIndice = i;
-                }
+                if (probabilidades[i] > mayorProb) { mayorProb = probabilidades[i]; mayorIndice = i; }
             }
-            
-            // Calcular confianza
             const confianza = (mayorProb * 100).toFixed(1);
-            
-            // Mostrar resultado
             const resultadoElement = document.getElementById("resultado");
             const confianzaElement = document.getElementById("confianza");
-            
             resultadoElement.textContent = clases[mayorIndice];
             confianzaElement.innerHTML = `<span class="badge ${getConfianzaColor(confianza)}">Confianza: ${confianza}%</span>`;
-            
-            // Color según confianza
-            if (confianza > 80) {
-                resultadoElement.style.color = "var(--color-success)";
-            } else if (confianza > 60) {
-                resultadoElement.style.color = "var(--color-warning)";
-            } else if (confianza > 40) {
-                resultadoElement.style.color = "#FF8E53";
-            } else {
-                resultadoElement.style.color = "var(--color-danger)";
-            }
-            
-            // Mostrar probabilidades
+            if (confianza > 80) resultadoElement.style.color = "var(--color-success)";
+            else if (confianza > 60) resultadoElement.style.color = "var(--color-warning)";
+            else if (confianza > 40) resultadoElement.style.color = "#FF8E53";
+            else resultadoElement.style.color = "var(--color-danger)";
             mostrarProbabilidades(probabilidades);
         }
-
+ 
         function getConfianzaColor(confianza) {
             confianza = parseFloat(confianza);
             if (confianza > 80) return 'bg-success';
@@ -883,26 +946,18 @@
             if (confianza > 40) return 'bg-warning';
             return 'bg-danger';
         }
-
+ 
         function mostrarProbabilidades(probabilidades) {
             const container = document.getElementById("probabilidades");
-            
             const resultados = [];
             for (let i = 0; i < probabilidades.length; i++) {
-                resultados.push({
-                    clase: clases[i],
-                    prob: probabilidades[i],
-                    index: i
-                });
+                resultados.push({ clase: clases[i], prob: probabilidades[i], index: i });
             }
-            
             resultados.sort((a, b) => b.prob - a.prob);
-            
             let html = '';
             resultados.forEach(item => {
                 const porcentaje = (item.prob * 100).toFixed(1);
                 const barWidth = Math.min(100, porcentaje * 1.2);
-                
                 html += `
                 <div class="clase-prob">
                     <div class="d-flex justify-content-between align-items-center">
@@ -913,90 +968,64 @@
                         <span class="fw-bold">${porcentaje}%</span>
                     </div>
                     <div class="progress mt-2" style="height: 8px;">
-                        <div class="progress-bar" role="progressbar" 
-                             style="width: ${barWidth}%;" 
-                             aria-valuenow="${porcentaje}" 
-                             aria-valuemin="0" 
-                             aria-valuemax="100">
-                        </div>
+                        <div class="progress-bar" role="progressbar" style="width: ${barWidth}%;"></div>
                     </div>
-                </div>
-                `;
+                </div>`;
             });
-            
             container.innerHTML = html;
         }
-
+ 
         // ============================================
-        // FUNCIONES AUXILIARES
+        // AUXILIARES
         // ============================================
         function mostrarClasesDisponibles() {
             const container = document.getElementById("clases-lista");
-            let html = '';
-            
-            clases.forEach((clase, index) => {
-                html += `<span class="clase-item">${index + 1}. ${clase}</span> `;
-            });
-            
-            container.innerHTML = html;
+            container.innerHTML = clases.map((c, i) =>
+                `<span class="clase-item">${i+1}. ${c}</span>`
+            ).join(' ');
         }
-
+ 
         function mostrarNotificacion(mensaje, tipo = 'info') {
             const toast = document.createElement('div');
-            toast.className = `position-fixed bottom-0 end-0 p-3`;
+            toast.className = 'position-fixed bottom-0 end-0 p-3';
             toast.style.zIndex = '1050';
-            
             const icon = tipo === 'success' ? 'bi-check-circle' :
-                        tipo === 'warning' ? 'bi-exclamation-triangle' :
-                        tipo === 'danger' ? 'bi-x-circle' : 'bi-info-circle';
-            
-            const toastInner = `
+                         tipo === 'warning' ? 'bi-exclamation-triangle' :
+                         tipo === 'danger'  ? 'bi-x-circle' : 'bi-info-circle';
+            toast.innerHTML = `
             <div class="toast show" role="alert">
                 <div class="toast-header bg-${tipo} text-white">
                     <i class="bi ${icon} me-2"></i>
                     <strong class="me-auto">Notificación</strong>
                     <button type="button" class="btn-close btn-close-white" onclick="this.parentElement.parentElement.remove()"></button>
                 </div>
-                <div class="toast-body">
-                    ${mensaje}
-                </div>
-            </div>
-            `;
-            
-            toast.innerHTML = toastInner;
+                <div class="toast-body">${mensaje}</div>
+            </div>`;
             document.body.appendChild(toast);
-            
-            setTimeout(() => {
-                if (toast.parentElement) toast.remove();
-            }, 3000);
+            setTimeout(() => { if (toast.parentElement) toast.remove(); }, 3000);
         }
-
+ 
         function iniciarMonitorRendimiento() {
             setInterval(() => {
                 const now = Date.now();
                 const delta = now - lastFpsUpdate;
-                
                 if (delta >= 1000) {
                     fps = Math.round((frameCount * 1000) / delta);
                     document.getElementById('fps-counter').textContent = fps;
                     frameCount = 0;
                     lastFpsUpdate = now;
                 }
-                
                 document.getElementById('prediction-time').textContent = `${Math.round(lastPredictionTime)}ms`;
-                
-                const memoryInfo = tf.memory();
-                const memoryMB = (memoryInfo.numBytes / (1024 * 1024)).toFixed(1);
+                const memoryMB = (tf.memory().numBytes / (1024 * 1024)).toFixed(1);
                 document.getElementById('memory-usage').textContent = `${memoryMB} MB`;
-                
             }, 1000);
         }
-
-        // Funciones globales
+ 
         window.toggleCamara = toggleCamara;
         window.cargarImagen = cargarImagen;
         window.limpiarTodo = limpiarTodo;
-
+        window.toggleCoco = toggleCoco;
+ 
         console.log("✨ Aplicación lista");
     </script>
 </body>
